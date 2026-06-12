@@ -57,7 +57,6 @@ header "3  Background Daemons (should all be GONE)"
 DAEMONS=(
   photoanalysisd
   photolibraryd
-  suggestd
   knowledgeconstructiond
   intelligenceflowd
   inputanalyticsd
@@ -77,6 +76,7 @@ SIPS_DAEMONS=(
   knowledge-agent
   spotlightknowledged
   siriknowledged
+  suggestd
 )
 for proc in "${SIPS_DAEMONS[@]}"; do
   if pgrep -x "$proc" > /dev/null 2>&1; then
