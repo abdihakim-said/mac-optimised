@@ -1,7 +1,7 @@
 # macOS Optimised — SRE/DevOps Edition
 
 MacBook: **macOS Sequoia 15.0 · x86_64**  
-Optimised: **2026-06-12**
+Optimised: **2026-06-13**
 
 ---
 
@@ -43,7 +43,7 @@ After bootstrap + reboot, everything is automated:
 |------|-----------------|
 | UI tweaks, daemon kills, third-party startup suppression | LaunchAgent runs `1-ui-and-agents.sh` on every login |
 | File descriptor limit 65536 | `~/Library/LaunchAgents/com.local.maxfiles.plist` loads on login |
-| `ulimit -n 65536` in every shell | Added to `~/.zshrc` and `~/.bashrc` |
+| `ulimit -n 65536` in every shell | Added to `~/.zshrc`, `~/.bashrc`, and `~/.bash_profile` |
 | Kernel sysctl tweaks | `/etc/sysctl.conf` — loaded by kernel on every boot |
 | Power management | `pmset` database — permanent until changed |
 | Disabled daemons | `launchctl disable` DB — survives every reboot |
@@ -77,8 +77,8 @@ bash ~/mac-optimised/scripts/3-verify.sh
 | Dock autohide speed | 0.12s | Near instant |
 | Window animations | off | Eliminates GPU compositing on every open/close |
 | Mission Control animation | 0.1s | Faster workspace switching |
-| Reduce Motion | on (sudo) | Less GPU load — set via script 2 |
-| Reduce Transparency | on (sudo) | Eliminates blur compositing (CPU/GPU heavy) — set via script 2 |
+| Reduce Motion | on | Less GPU load — set manually: System Settings → Accessibility → Display (macOS 15 blocks script access) |
+| Reduce Transparency | on | Eliminates blur compositing (CPU/GPU heavy) — set manually: System Settings → Accessibility → Display (macOS 15 blocks script access) |
 | Finder animations | off | Snappier file browsing |
 | LSQuarantine dialog | **on (default)** | Gatekeeper warning kept — security default |
 | DS_Store on network/USB | off | Stops littering remote volumes |
@@ -119,14 +119,15 @@ These apps install themselves as LaunchAgents and run on **every reboot** even w
 
 Apps still work when launched manually — only the background auto-start is disabled.
 
-### Apple Intelligence & Spotlight Knowledge — System Settings Required
+### Siri & Spotlight Knowledge — System Settings Required
 
-These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in System Settings:
+These respawn via Mach/XPC regardless of `launchctl disable`. Fixed permanently by turning off Siri:
 
 | Fix | Kills |
 |-----|-------|
-| System Settings → **Apple Intelligence & Siri** → turn off Apple Intelligence | `intelligenceplatformd`, `intelligencecontextd` |
-| System Settings → **Siri & Spotlight** → uncheck all Siri Suggestions | `knowledge-agent`, `spotlightknowledged`, `siriknowledged`, `suggestd` |
+| System Settings → **Siri & Spotlight** → turn off Siri | `knowledge-agent`, `spotlightknowledged`, `siriknowledged`, `suggestd` |
+
+**Note:** Apple Intelligence does not exist on macOS 15.0 — it was introduced in 15.1. No action needed for `intelligenceplatformd`/`intelligencecontextd` on this machine; script 1 kills them on each login and the launchd disable DB prevents auto-start.
 
 ### Spotlight — Dev Directories Excluded (script 2)
 
@@ -167,9 +168,7 @@ Spotlight is excluded from indexing these directories to stop `mds_stores` from 
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `fileproviderd` high CPU | iCloud Drive syncing | Pause iCloud Drive in System Settings → Apple ID if Mac is slow |
-| `knowledge-agent`, `suggestd` | Respawn via XPC | System Settings → Siri & Spotlight → disable Suggestions |
-| Power Nap on | pmset can't override battery prefs | System Settings → Battery → turn off Power Nap |
+| `fileproviderd` high CPU | iCloud Drive syncing after reboot — temporary, clears on its own | Pause iCloud Drive in System Settings → Apple ID if Mac feels slow |
 
 ---
 
@@ -182,13 +181,11 @@ bash ~/mac-optimised/scripts/3-verify.sh
 bash ~/mac-optimised/scripts/3-verify.sh 2>&1 | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
 ```
 
-Expected after running both scripts + reboot: **41 pass, 5 warnings**, **0 failures**.
+Expected after running both scripts + manual System Settings steps + reboot: **47 pass, 0 warnings**, **0 failures**.
 
-The 5 warnings are all System Settings items that cannot be scripted on macOS 15:
-- **Reduce Motion** — System Settings → Accessibility → Display
-- **Reduce Transparency** — System Settings → Accessibility → Display
-- `knowledge-agent` / `suggestd` — System Settings → Siri & Spotlight → disable Suggestions
-- `mds_stores` high CPU — resolves on its own after reboot (exclusion files placed)
+If you see warnings after a fresh reboot:
+- `fileproviderd` high CPU — iCloud Drive syncing, clears on its own within ~15 minutes
+- `knowledge-agent` / `suggestd` — ensure Siri is off: System Settings → Siri & Spotlight → turn off Siri
 
 ---
 
