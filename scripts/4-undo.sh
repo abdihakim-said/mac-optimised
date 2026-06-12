@@ -18,8 +18,10 @@ defaults delete com.apple.dock expose-animation-duration 2>/dev/null || true
 defaults delete com.apple.dock show-recents 2>/dev/null || true
 defaults delete NSGlobalDomain NSAutomaticWindowAnimationsEnabled 2>/dev/null || true
 defaults delete NSGlobalDomain NSWindowResizeTime 2>/dev/null || true
-defaults write /Library/Preferences/com.apple.universalaccess reduceMotion -bool false
-defaults write /Library/Preferences/com.apple.universalaccess reduceTransparency -bool false
+# universalaccess is locked on macOS 15; restore these manually:
+# System Settings → Accessibility → Display → Reduce Motion (off)
+# System Settings → Accessibility → Display → Reduce Transparency (off)
+warn "Reduce Motion/Transparency: restore manually via System Settings → Accessibility → Display"
 defaults write com.apple.LaunchServices LSQuarantine -bool true
 log "UI defaults restored to macOS stock"
 

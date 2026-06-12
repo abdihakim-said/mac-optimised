@@ -106,20 +106,21 @@ done
 # ─── 5. Third-Party Auto-Starters ────────────────────────────────────────────
 header "5  Third-Party Auto-Starters (should not be running at login)"
 check_not_running() {
-  local label=$1 proc=$2 hint=$3
-  if pgrep -f "$proc" > /dev/null 2>&1; then
+  local label=$1 proc=$2
+  # Use -x for exact process name match to avoid false positives from command-line args
+  if pgrep -x "$proc" > /dev/null 2>&1; then
     fail "$label is running at startup — re-run script 1 (user-level) or script 2 (system-level)"
   else
     ok "$label not auto-starting"
   fi
 }
 
-check_not_running "Kiro CLI / CodeWhisperer"  "kiro_cli_desktop"      "script 1"
-check_not_running "BlueJeansHelper"           "BlueJeansHelper"       "script 1"
-check_not_running "BlueJeansMenu"             "BlueJeansMenu"         "script 1"
-check_not_running "Adobe CCXProcess"          "CCXProcess"            "script 1 + 2"
-check_not_running "Adobe Creative Cloud"      "AdobeCreativeCloud"    "script 2 (sudo)"
-check_not_running "AnyDesk"                   "AnyDesk"               "script 2 (sudo)"
+check_not_running "Kiro CLI / CodeWhisperer"  "kiro_cli_desktop"
+check_not_running "BlueJeansHelper"           "BlueJeansHelper"
+check_not_running "BlueJeansMenu"             "BlueJeansMenu"
+check_not_running "Adobe CCXProcess"          "CCXProcess"
+check_not_running "Adobe Creative Cloud"      "AdobeCreativeCloud"
+check_not_running "AnyDesk"                   "AnyDesk"
 
 # Zoom daemons — warn rather than fail (Zoom is often needed for meetings)
 if pgrep -x "ZoomDaemon" > /dev/null 2>&1; then
@@ -155,15 +156,19 @@ check_default com.apple.finder         AppleShowAllFiles      "1"     "Hidden fi
 check_default com.apple.CrashReporter  DialogType             "none"  "CrashReporter silenced"
 check_default NSGlobalDomain           NSWindowResizeTime     "0.001" "Window resize instant"
 
-# universalaccess is TCC-protected on macOS 15; written by script 2 (sudo) to /Library/Preferences
+# universalaccess is fully locked on macOS 15 — even root cannot write it.
+# These must be toggled manually in System Settings → Accessibility → Display.
 check_system_ua() {
   local key=$1 label=$2
+  # Try both user domain and system domain reads
   local val
-  val=$(defaults read /Library/Preferences/com.apple.universalaccess "$key" 2>/dev/null)
+  val=$(defaults read com.apple.universalaccess "$key" 2>/dev/null || \
+        defaults read /Library/Preferences/com.apple.universalaccess "$key" 2>/dev/null || \
+        echo "0")
   if [ "$val" = "1" ]; then
     ok "$label"
   else
-    fail "$label — run: sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh"
+    warn "$label — set manually: System Settings → Accessibility → Display"
   fi
 }
 check_system_ua reduceMotion       "Reduce Motion on (less GPU load)"

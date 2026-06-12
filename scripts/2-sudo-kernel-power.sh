@@ -17,10 +17,11 @@ REAL_USER=$(logname 2>/dev/null || stat -f '%Su' /dev/console)
 REAL_UID=$(id -u "$REAL_USER")
 
 header "Accessibility — Reduce Motion & Transparency"
-# com.apple.universalaccess is TCC-protected on macOS 15; requires sudo to write
-defaults write /Library/Preferences/com.apple.universalaccess reduceMotion       -bool true
-defaults write /Library/Preferences/com.apple.universalaccess reduceTransparency -bool true
-log "Reduce Motion: on | Reduce Transparency: on (less GPU compositing)"
+# macOS 15 Sequoia fully locks com.apple.universalaccess — even root cannot write it.
+# These must be set manually:
+#   System Settings → Accessibility → Display → Reduce Motion (on)
+#   System Settings → Accessibility → Display → Reduce Transparency (on)
+warn "Reduce Motion / Reduce Transparency: set manually in System Settings → Accessibility → Display"
 
 header "Memory — Purge Inactive RAM"
 purge && log "Inactive RAM purged" || warn "purge failed (harmless)"
@@ -38,7 +39,9 @@ rm -f /private/var/vm/sleepimage 2>/dev/null && log "Stale hibernation image rem
 header "System Caches (rebuilt automatically)"
 rm -rf /Library/Caches/* 2>/dev/null && log "System /Library/Caches cleared" || warn "Some system caches couldn't clear (non-fatal)"
 
-header "Spotlight — Stop Indexing Dev Directories"
+header "Spotlight — Exclude Dev Directories"
+# mdutil -i off only works on separate volumes on macOS 15 (APFS subdirs are unsupported).
+# .metadata_never_index tells mds/mdworker to skip the directory — works on any macOS version.
 DEV_DIRS=(
   "/Users/$REAL_USER/src"
   "/Users/$REAL_USER/Developer"
@@ -52,9 +55,12 @@ DEV_DIRS=(
 )
 for dir in "${DEV_DIRS[@]}"; do
   if [ -d "$dir" ]; then
-    mdutil -i off "$dir" 2>/dev/null && log "Spotlight off: $dir" || warn "mdutil failed: $dir"
+    touch "$dir/.metadata_never_index" 2>/dev/null && log "Spotlight excluded: $dir" || warn "Could not create .metadata_never_index in $dir"
   fi
 done
+# Restart mds so exclusions take effect immediately
+killall mds 2>/dev/null || true
+log "mds restarted — exclusions now active"
 
 header "Disable Third-Party System LaunchAgents (/Library/LaunchAgents)"
 # These run for every user session — disable them in the user's gui session
