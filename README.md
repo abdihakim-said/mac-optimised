@@ -182,11 +182,13 @@ bash ~/mac-optimised/scripts/3-verify.sh
 bash ~/mac-optimised/scripts/3-verify.sh 2>&1 | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
 ```
 
-Expected after running both scripts + reboot: **42 pass, 3 warnings** (System Settings items), **0 failures**.
+Expected after running both scripts + reboot: **41 pass, 5 warnings**, **0 failures**.
 
-The 3 permanent warnings are System Settings items that survive every re-run:
-- `knowledge-agent` / `suggestd` — disable via System Settings → Siri & Spotlight
-- `powernap` — disable via System Settings → Battery
+The 5 warnings are all System Settings items that cannot be scripted on macOS 15:
+- **Reduce Motion** — System Settings → Accessibility → Display
+- **Reduce Transparency** — System Settings → Accessibility → Display
+- `knowledge-agent` / `suggestd` — System Settings → Siri & Spotlight → disable Suggestions
+- `mds_stores` high CPU — resolves on its own after reboot (exclusion files placed)
 
 ---
 

@@ -212,7 +212,11 @@ fi
 # mds_stores = Spotlight indexing; high CPU = still building index
 MDS_CPU=$(ps aux | awk '/mds_stores/ && !/awk/ {printf "%.0f", $3}' | head -1)
 if [ -n "$MDS_CPU" ] && [ "$MDS_CPU" -gt 10 ] 2>/dev/null; then
-  warn "mds_stores CPU = ${MDS_CPU}% — Spotlight indexing; run script 2 to exclude dev directories"
+  if [ -f "$HOME/github-repos/.metadata_never_index" ] || [ -f "$HOME/Downloads/.metadata_never_index" ]; then
+    warn "mds_stores CPU = ${MDS_CPU}% — Spotlight exclusions placed; reboot for them to fully take effect"
+  else
+    warn "mds_stores CPU = ${MDS_CPU}% — run: sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh"
+  fi
 else
   ok "mds_stores CPU normal (${MDS_CPU:-0}%)"
 fi

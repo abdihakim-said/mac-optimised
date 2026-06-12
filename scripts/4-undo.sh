@@ -7,8 +7,9 @@
 set -uo pipefail
 [ "$(id -u)" != "0" ] && { echo "Re-running with sudo..."; exec sudo bash "$0" "$@"; }
 
-GREEN='\033[0;32m'; BOLD='\033[1m'; NC='\033[0m'
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 log()    { echo -e "  ${GREEN}✓${NC}  $1"; }
+warn()   { echo -e "  ${YELLOW}!${NC}  $1"; }
 header() { echo -e "\n${BOLD}── $1${NC}"; }
 
 header "Restore UI Defaults"
@@ -95,10 +96,25 @@ for svc in "${USER_AGENTS[@]}"; do
   log "Re-enabled: $svc"
 done
 
-header "Remove File Descriptor LaunchAgent"
-PLIST="$HOME/Library/LaunchAgents/com.local.maxfiles.plist"
+header "Remove Spotlight Exclusions"
+DEV_DIRS=(
+  "/Users/$REAL_USER/src" "/Users/$REAL_USER/Developer" "/Users/$REAL_USER/projects"
+  "/Users/$REAL_USER/code" "/Users/$REAL_USER/github-repos" "/Users/$REAL_USER/sandbox"
+  "/Users/$REAL_USER/Desktop" "/Users/$REAL_USER/Downloads" "/Users/$REAL_USER/opt"
+)
+for dir in "${DEV_DIRS[@]}"; do
+  [ -f "$dir/.metadata_never_index" ] && rm -f "$dir/.metadata_never_index" && log "Spotlight restored: $dir" || true
+done
+
+header "Remove LaunchAgents"
+# fd limit agent
+PLIST="/Users/$REAL_USER/Library/LaunchAgents/com.local.maxfiles.plist"
 launchctl unload "$PLIST" 2>/dev/null || true
-rm -f "$PLIST" && log "LaunchAgent removed: $PLIST"
+rm -f "$PLIST" && log "LaunchAgent removed: com.local.maxfiles" || true
+# login agent (runs script 1 on every login)
+LOGIN_AGENT="/Users/$REAL_USER/Library/LaunchAgents/com.${REAL_USER}.mac-optimised.plist"
+launchctl unload "$LOGIN_AGENT" 2>/dev/null || true
+rm -f "$LOGIN_AGENT" && log "Login LaunchAgent removed: com.${REAL_USER}.mac-optimised" || true
 
 header "Remove ulimit from Shell Profiles"
 for RC in "$HOME/.zshrc" "$HOME/.bashrc"; do

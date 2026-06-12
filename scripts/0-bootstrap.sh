@@ -68,7 +68,7 @@ launchctl unload "$AGENT_PLIST" 2>/dev/null || true
 launchctl load   "$AGENT_PLIST" 2>/dev/null && log "LaunchAgent installed + loaded: $AGENT_PLIST" || warn "LaunchAgent load failed — check path"
 
 # ── 2. Run script 1 now ───────────────────────────────────────────────────────
-header "Running Script 1 (UI, daemons, fd limits)"
+header "Running Script 1 (UI, daemons, third-party auto-starters, fd limits)"
 bash "$SCRIPT1"
 
 # ── 3. Instructions for sudo step ────────────────────────────────────────────
