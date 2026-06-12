@@ -117,7 +117,7 @@ launchctl unload "$LOGIN_AGENT" 2>/dev/null || true
 rm -f "$LOGIN_AGENT" && log "Login LaunchAgent removed: com.${REAL_USER}.mac-optimised" || true
 
 header "Remove ulimit from Shell Profiles"
-for RC in "$HOME/.zshrc" "$HOME/.bashrc"; do
+for RC in "/Users/$REAL_USER/.zshrc" "/Users/$REAL_USER/.bashrc"; do
   [ -f "$RC" ] && sed -i '' '/mac-optimis/d' "$RC" && log "ulimit removed from $RC" || true
 done
 

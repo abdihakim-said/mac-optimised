@@ -21,7 +21,7 @@ defaults write NSGlobalDomain com.apple.springing.enabled -bool true
 defaults write NSGlobalDomain com.apple.springing-delay -float 0.1
 defaults write com.apple.LaunchServices LSQuarantine -bool true
 log "Dock instant | window animations off | Gatekeeper kept on"
-warn "reduceMotion/reduceTransparency require sudo — run script 2 (TCC-protected on macOS 15)"
+warn "reduceMotion/reduceTransparency: set manually in System Settings → Accessibility → Display (macOS 15 blocks all script access)"
 
 header "Finder"
 defaults write com.apple.finder DisableAllAnimations -bool true

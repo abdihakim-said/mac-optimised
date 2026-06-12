@@ -7,7 +7,7 @@
 #
 # What it does:
 #   1. Installs the login LaunchAgent (auto-applies settings on every login)
-#   2. Runs script 1 immediately (UI, daemons, fd limits)
+#   2. Runs script 1 immediately (UI tweaks, daemons, third-party auto-starters, fd limits)
 #   3. Prints instructions for the sudo step + reboot
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
