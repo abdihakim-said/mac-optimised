@@ -1,0 +1,4 @@
+# Logs — kept locally, not tracked
+logs/*.txt
+logs/*.log
+.DS_Store
