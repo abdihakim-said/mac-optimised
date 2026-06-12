@@ -80,7 +80,7 @@ bash ~/mac-optimised/scripts/3-verify.sh
 | Reduce Motion | on | Less GPU load, less distraction |
 | Reduce Transparency | on | Eliminates blur compositing (CPU/GPU heavy) |
 | Finder animations | off | Snappier file browsing |
-| LSQuarantine dialog | off | No "are you sure?" popup on dev tools |
+| LSQuarantine dialog | **on (default)** | Gatekeeper "downloaded from internet" warning kept — security default |
 | DS_Store on network/USB | off | Stops littering remote volumes |
 | Finder hidden files | visible | Essential for SRE/DevOps work |
 | Finder path + status bar | shown | Instant path context |
@@ -108,10 +108,11 @@ These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in
 
 ### File Descriptor Limits
 
-| Limit | Before | After |
-|-------|--------|-------|
-| Soft (per shell) | 256 | 65,536 |
-| Hard (kernel max) | 524,288 | 200,000 |
+| Limit | macOS Default | After |
+|-------|--------------|-------|
+| `kern.maxfiles` (system-wide) | 122,880 | **524,288** |
+| `kern.maxfilesperproc` (per process) | 61,440 | **524,288** |
+| Shell `ulimit -n` | 256 | **65,536** |
 
 ### Kernel Sysctl (`/etc/sysctl.conf`)
 

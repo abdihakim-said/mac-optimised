@@ -35,24 +35,22 @@ done
 
 header "Sysctl Kernel Tweaks"
 # Write to /etc/sysctl.conf — loaded by kernel on every boot
-if ! grep -q 'mac-optimised' /etc/sysctl.conf 2>/dev/null; then
-  cat >> /etc/sysctl.conf <<'EOF'
-
+# Always overwrite — ensures values are correct even if run again after a fix
+cat > /etc/sysctl.conf <<'EOF'
 # mac-optimised — SRE/DevOps kernel tuning
-kern.maxfiles=65536
-kern.maxfilesperproc=32768
+# macOS Sequoia defaults: kern.maxfiles=122880, kern.maxfilesperproc=61440
+# Raised well above defaults for container/service workloads
+kern.maxfiles=524288
+kern.maxfilesperproc=524288
 net.inet.tcp.msl=15000
 net.inet.tcp.sendspace=262144
 net.inet.tcp.recvspace=262144
 EOF
-  log "Sysctl params written to /etc/sysctl.conf (active on next reboot)"
-else
-  log "Sysctl params already in /etc/sysctl.conf — skipping"
-fi
+log "Sysctl params written to /etc/sysctl.conf (active on next reboot)"
 
 # Apply live where macOS allows it
-sysctl -w kern.maxfiles=65536        2>/dev/null && log "kern.maxfiles=65536 (live)"        || true
-sysctl -w kern.maxfilesperproc=32768 2>/dev/null && log "kern.maxfilesperproc=32768 (live)" || true
+sysctl -w kern.maxfiles=524288        2>/dev/null && log "kern.maxfiles=524288 (live)"        || true
+sysctl -w kern.maxfilesperproc=524288 2>/dev/null && log "kern.maxfilesperproc=524288 (live)" || true
 
 echo ""
 echo -e "${BOLD}Script 2 complete.${NC} Reboot to apply all kernel/launchd changes."

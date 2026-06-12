@@ -73,7 +73,8 @@ pmset -a powernap 1      && log "Power Nap: on"
 
 header "Remove Sysctl Config"
 if [ -f /etc/sysctl.conf ]; then
-  sed -i '' '/mac-optimised/,/recvspace/d' /etc/sysctl.conf
+  sed -i '' '/mac-optimised/,/recvspace/d' /etc/sysctl.conf 2>/dev/null || true
+  [ ! -s /etc/sysctl.conf ] && rm -f /etc/sysctl.conf
   log "/etc/sysctl.conf mac-optimised block removed"
 fi
 

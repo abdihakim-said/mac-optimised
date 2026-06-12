@@ -20,7 +20,7 @@ defaults write NSGlobalDomain com.apple.springing.enabled -bool true
 defaults write NSGlobalDomain com.apple.springing-delay -float 0.1
 defaults write com.apple.universalaccess reduceMotion -bool true
 defaults write com.apple.universalaccess reduceTransparency -bool true
-defaults write com.apple.LaunchServices LSQuarantine -bool false
+defaults write com.apple.LaunchServices LSQuarantine -bool true
 log "Dock instant | animations off | transparency off | motion off"
 
 header "Finder"

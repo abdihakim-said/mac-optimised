@@ -44,8 +44,8 @@ check_sysctl() {
     fail "$key = $val (expected >= $expected) — run script 2 and reboot"
   fi
 }
-check_sysctl kern.maxfiles        65536
-check_sysctl kern.maxfilesperproc 32768
+check_sysctl kern.maxfiles        524288
+check_sysctl kern.maxfilesperproc 524288
 
 if [ -f /etc/sysctl.conf ] && grep -q 'kern.maxfiles' /etc/sysctl.conf; then
   ok "/etc/sysctl.conf persisted (survives reboot)"
