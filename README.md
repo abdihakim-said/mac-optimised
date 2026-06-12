@@ -5,35 +5,64 @@ Optimised: **2026-06-12**
 
 ---
 
+## Bootstrap a New Mac
+
+```bash
+git clone https://github.com/abdihakim-said/mac-optimised.git ~/mac-optimised
+bash ~/mac-optimised/scripts/0-bootstrap.sh
+sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh
+sudo reboot
+```
+
+That's it. Four commands. The bootstrap script installs the login LaunchAgent (so settings re-apply automatically on every future login), runs all UI and daemon tweaks, then tells you exactly what to run next.
+
+---
+
 ## Folder Structure
 
 ```
 ~/mac-optimised/
-├── README.md                      ← this file
+├── README.md
 ├── scripts/
-│   ├── 1-ui-and-agents.sh         ← UI tweaks + disable background daemons (no sudo)
-│   ├── 2-sudo-kernel-power.sh     ← Kernel limits, power, DNS, caches (sudo)
-│   ├── 3-verify.sh                ← Check every setting is still in place
-│   └── 4-undo.sh                  ← Revert everything back to macOS defaults
-└── logs/                          ← Drop verify output here for records
+│   ├── 0-bootstrap.sh             ← run once on a new Mac after git clone
+│   ├── 1-ui-and-agents.sh         ← UI tweaks + disable background daemons (no sudo, runs on every login via LaunchAgent)
+│   ├── 2-sudo-kernel-power.sh     ← kernel limits, power, DNS, caches (sudo, run once + after macOS updates)
+│   ├── 3-verify.sh                ← health check — run any time to confirm everything is applied
+│   └── 4-undo.sh                  ← full rollback to stock macOS defaults
+└── logs/
+    └── login-apply.log            ← written on every login by the LaunchAgent (gitignored)
 ```
 
 ---
 
-## How to Run (fresh machine or after OS update)
+## Day-to-Day — Nothing to Do
+
+After bootstrap + reboot, everything is automated:
+
+| What | How it auto-loads |
+|------|-----------------|
+| UI tweaks, daemon kills | LaunchAgent runs `1-ui-and-agents.sh` on every login |
+| File descriptor limit 65536 | `~/Library/LaunchAgents/com.local.maxfiles.plist` loads on login |
+| `ulimit -n 65536` in every shell | Added to `~/.zshrc` and `~/.bashrc` |
+| Kernel sysctl tweaks | `/etc/sysctl.conf` — loaded by kernel on every boot |
+| Power management | `pmset` database — permanent until changed |
+| Disabled daemons | `launchctl disable` DB — survives every reboot |
+
+---
+
+## After a macOS Update
+
+macOS updates occasionally reset `defaults` preferences and re-enable launchd agents. The login LaunchAgent handles `defaults` automatically. For the kernel/power changes:
 
 ```bash
-# Step 1 — UI, agents, file descriptor LaunchAgent
-bash ~/mac-optimised/scripts/1-ui-and-agents.sh
-
-# Step 2 — Kernel, power management, DNS, caches (needs sudo)
 sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh
-
-# Step 3 — Verify everything applied correctly
-bash ~/mac-optimised/scripts/3-verify.sh
-
-# Reboot once to activate sysctl + launchd changes
 sudo reboot
+```
+
+Then verify:
+
+```bash
+bash ~/mac-optimised/scripts/3-verify.sh
 ```
 
 ---
@@ -57,144 +86,70 @@ sudo reboot
 | Finder path + status bar | shown | Instant path context |
 | CrashReporter dialog | silenced | No popups interrupting builds |
 
-**How it persists:** Written to `~/Library/Preferences/` plist files. Loaded every session automatically. Survives reboot indefinitely.
-
----
-
 ### Background Daemons — Disabled
-
-These were the biggest background CPU consumers. All disabled via `launchctl disable` (written to macOS's system disabled-db) and stopped via `launchctl bootout`.
 
 | Daemon | What It Does | CPU Impact |
 |--------|-------------|------------|
-| `photoanalysisd` | On-device ML face/scene detection — runs constantly scanning Photos library | **Highest** |
+| `photoanalysisd` | On-device ML face/scene detection | **Highest** |
 | `photolibraryd` | Photos library background indexing | High |
 | `suggestd` | Siri Suggestions — analyses app usage patterns | Medium |
-| `knowledgeconstructiond` | Builds knowledge graph for Spotlight | Medium |
+| `knowledgeconstructiond` | Builds Spotlight knowledge graph | Medium |
 | `intelligenceflowd` | Apple Intelligence ML pipeline | Medium |
-| `inputanalyticsd` | Logs every keystroke pattern for "analytics" | Low-Medium |
+| `inputanalyticsd` | Keystroke pattern logging | Low-Medium |
 
-**How it persists:** `launchctl disable` writes to `/var/db/com.apple.xpc.launchd/` — survives reboot. Does not reset on macOS update (usually).
+### Apple Intelligence & Spotlight Knowledge — System Settings Required
 
----
+These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in System Settings:
 
-### Apple Intelligence & Spotlight Knowledge — Partial (System Settings Required)
+| Fix | Kills |
+|-----|-------|
+| System Settings → **Apple Intelligence & Siri** → turn off Apple Intelligence | `intelligenceplatformd`, `intelligencecontextd` |
+| System Settings → **Siri & Spotlight** → uncheck all Siri Suggestions | `knowledge-agent`, `spotlightknowledged`, `siriknowledged` |
 
-These 5 daemons respawn via Mach/XPC ports — another system process calls them on-demand, so `launchctl disable` alone can't fully stop them.
-
-| Daemon | Trigger | Fix |
-|--------|---------|-----|
-| `intelligenceplatformd` | Apple Intelligence enabled | System Settings → Apple Intelligence & Siri → **turn off Apple Intelligence** |
-| `intelligencecontextd` | Apple Intelligence enabled | Same as above |
-| `knowledge-agent` | Spotlight Suggestions enabled | System Settings → Siri & Spotlight → **uncheck all Siri Suggestions** |
-| `spotlightknowledged` | Spotlight Suggestions enabled | Same as above |
-| `siriknowledged` | Siri enabled | Same as above |
-
-**Status:** Both `intelligenceplatformd` and `knowledge-agent` chains were disabled in the launchd database. The 2 System Settings toggles above are the final step to prevent XPC re-activation.
-
----
-
-### File Descriptor Limits (Critical for SRE/DevOps)
-
-Running many containers, services, and file watchers will hit macOS's default limit of 256 open files fast. We raised it:
+### File Descriptor Limits
 
 | Limit | Before | After |
 |-------|--------|-------|
 | Soft (per shell) | 256 | 65,536 |
-| Hard (kernel max) | 524,288 | 65,536 soft / 200,000 hard |
+| Hard (kernel max) | 524,288 | 200,000 |
 
-**How it persists — two layers:**
-1. `~/Library/LaunchAgents/com.local.maxfiles.plist` — sets the limit via `launchctl limit` on every login
-2. `ulimit -n 65536` added to `~/.zshrc` and `~/.bashrc` — every terminal session inherits it
-
----
-
-### Kernel Sysctl Tweaks (`/etc/sysctl.conf`)
-
-Loaded by the kernel on every boot. Active on next reboot after run.
+### Kernel Sysctl (`/etc/sysctl.conf`)
 
 | Key | Value | Why |
 |-----|-------|-----|
-| `kern.maxfiles` | 65,536 | Total open file descriptors across all processes |
-| `kern.maxfilesperproc` | 32,768 | Per-process limit |
-| `net.inet.tcp.msl` | 15,000 ms | Halves TIME_WAIT from 30s → 15s (faster port reuse for local services) |
-| `net.inet.tcp.sendspace` | 262,144 | Larger TCP send buffer (faster local service throughput) |
+| `kern.maxfiles` | 65,536 | Total open file descriptors |
+| `kern.maxfilesperproc` | 32,768 | Per-process fd limit |
+| `net.inet.tcp.msl` | 15,000 ms | Halves TIME_WAIT — faster port reuse |
+| `net.inet.tcp.sendspace` | 262,144 | Larger TCP send buffer |
 | `net.inet.tcp.recvspace` | 262,144 | Larger TCP receive buffer |
-
-**File:** `/etc/sysctl.conf`
-
----
 
 ### Power Management
 
 | Setting | Value | Why |
 |---------|-------|-----|
-| `hibernatemode` | 0 | Disables writing RAM to disk on sleep — faster sleep/wake, frees disk space equal to your RAM size |
-| `sms` (Sudden Motion Sensor) | 0 | Irrelevant on NVMe/SSD — one less background sensor daemon |
-| `womp` (Wake-on-LAN) | 0 | Stops unexpected wakes from Bonjour/network |
-| `powernap` | 0 | Prevents background activity during sleep |
-
-**How it persists:** `pmset` writes to the system power management database. Survives reboot permanently until manually changed.
+| `hibernatemode` | 0 | No RAM-to-disk on sleep — faster wake |
+| `sms` | 0 | Sudden Motion Sensor off — irrelevant on NVMe |
+| `womp` | 0 | Wake-on-LAN off |
+| `powernap` | 0 | No background activity during sleep |
 
 ---
 
-### DNS Cache
-
-Flushed at time of optimisation. Not a persistent change — macOS rebuilds the cache as you browse. Re-run script 2 any time you hit DNS weirdness.
-
----
-
-## Verifying Everything Is Still Applied
-
-Run this any time — after an update, after a reboot, or just to check:
+## Verify Everything Is Applied
 
 ```bash
 bash ~/mac-optimised/scripts/3-verify.sh
-```
 
-Expected output: all green ticks except the 5 System Settings items (shown as yellow warnings, not failures).
-
-To save a log:
-```bash
+# Save a timestamped log
 bash ~/mac-optimised/scripts/3-verify.sh | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
 ```
 
----
-
-## After a macOS Update
-
-macOS updates can reset some `defaults` and occasionally re-enable launchd agents. After any update:
-
-```bash
-bash ~/mac-optimised/scripts/1-ui-and-agents.sh
-sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh
-bash ~/mac-optimised/scripts/3-verify.sh
-sudo reboot
-```
+Expected: all green — 26 checks pass, 5 yellow warnings (System Settings items that need a manual toggle once).
 
 ---
 
-## Undoing Everything
+## Undo Everything
 
 ```bash
 sudo bash ~/mac-optimised/scripts/4-undo.sh
 sudo reboot
 ```
-
----
-
-## What Does NOT Need Re-Running After Reboot
-
-Everything below is permanently stored and loads automatically:
-
-- `~/Library/LaunchAgents/com.local.maxfiles.plist` — loads on login
-- `~/.zshrc` ulimit — loads on every terminal session
-- `/etc/sysctl.conf` — loaded by kernel on boot
-- `pmset` settings — stored in power management DB
-- `launchctl disable` entries — stored in `/var/db/com.apple.xpc.launchd/`
-- `defaults write` entries — stored in `~/Library/Preferences/`
-
-**You never need to run these scripts again unless:**
-- macOS update resets something (run verify to check)
-- You want to add new optimisations
-- You want to undo changes
