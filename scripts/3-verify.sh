@@ -55,8 +55,6 @@ fi
 
 header "3  Background Daemons (should all be GONE)"
 DAEMONS=(
-  photoanalysisd
-  photolibraryd
   knowledgeconstructiond
   intelligenceflowd
   inputanalyticsd
@@ -64,6 +62,19 @@ DAEMONS=(
 for proc in "${DAEMONS[@]}"; do
   if pgrep -x "$proc" > /dev/null 2>&1; then
     fail "$proc is running — re-run script 1"
+  else
+    ok "$proc not running"
+  fi
+done
+
+# Photos daemons are respawned by PhotosReliveWidget (notification center widget)
+for proc in photoanalysisd photolibraryd; do
+  if pgrep -x "$proc" > /dev/null 2>&1; then
+    if pgrep -x "PhotosReliveWidget" > /dev/null 2>&1; then
+      warn "$proc running — caused by PhotosReliveWidget; remove Photos widget from Notification Center to permanently fix (or re-run script 1 for a temporary kill)"
+    else
+      fail "$proc is running — re-run script 1"
+    fi
   else
     ok "$proc not running"
   fi
@@ -112,6 +123,20 @@ check_default com.apple.finder         DisableAllAnimations   "1"     "Finder an
 check_default com.apple.finder         AppleShowAllFiles      "1"     "Hidden files visible"
 check_default com.apple.CrashReporter  DialogType             "none"  "CrashReporter silenced"
 check_default NSGlobalDomain           NSWindowResizeTime     "0.001" "Window resize instant"
+
+# universalaccess is TCC-protected on macOS 15; written by script 2 (sudo) to /Library/Preferences
+check_system_ua() {
+  local key=$1 label=$2
+  local val
+  val=$(defaults read /Library/Preferences/com.apple.universalaccess "$key" 2>/dev/null)
+  if [ "$val" = "1" ]; then
+    ok "$label"
+  else
+    fail "$label — not set (run: sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh)"
+  fi
+}
+check_system_ua reduceMotion       "Reduce Motion on (less GPU load)"
+check_system_ua reduceTransparency "Reduce Transparency on (no blur compositing)"
 
 header "7  LaunchAgent Disabled DB"
 UID_NUM=$(id -u)

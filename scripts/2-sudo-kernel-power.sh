@@ -12,6 +12,12 @@ log()  { echo -e "  ${GREEN}✓${NC}  $1"; }
 warn() { echo -e "  ${YELLOW}!${NC}  $1"; }
 header() { echo -e "\n${BOLD}── $1${NC}"; }
 
+header "Accessibility — Reduce Motion & Transparency"
+# com.apple.universalaccess is TCC-protected on macOS 15; requires sudo to write
+defaults write /Library/Preferences/com.apple.universalaccess reduceMotion       -bool true
+defaults write /Library/Preferences/com.apple.universalaccess reduceTransparency -bool true
+log "Reduce Motion: on | Reduce Transparency: on (less GPU compositing)"
+
 header "Memory — Purge Inactive RAM"
 purge && log "Inactive RAM purged" || warn "purge failed (harmless)"
 

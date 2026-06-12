@@ -144,7 +144,9 @@ bash ~/mac-optimised/scripts/3-verify.sh
 bash ~/mac-optimised/scripts/3-verify.sh | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
 ```
 
-Expected: all green — 26 checks pass, 5 yellow warnings (System Settings items that need a manual toggle once).
+Expected after running both scripts: 30 checks pass, 3 yellow warnings (System Settings items that need a manual toggle once), 0 failures.
+
+**Note:** `com.apple.universalaccess` (Reduce Motion/Transparency) is TCC-protected on macOS 15 — it cannot be written without sudo. Script 1 handles all no-sudo settings; script 2 (sudo) handles this domain. Run both for a clean verify.
 
 ---
 

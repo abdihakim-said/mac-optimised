@@ -5,8 +5,9 @@
 # Safe to re-run. No sudo required.
 # ─────────────────────────────────────────────────────────────────────────────
 set -uo pipefail
-GREEN='\033[0;32m'; BOLD='\033[1m'; NC='\033[0m'
+GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BOLD='\033[1m'; NC='\033[0m'
 log()    { echo -e "  ${GREEN}✓${NC}  $1"; }
+warn()   { echo -e "  ${YELLOW}!${NC}  $1"; }
 header() { echo -e "\n${BOLD}── $1${NC}"; }
 
 header "UI — Animations & Transparency"
@@ -18,10 +19,9 @@ defaults write NSGlobalDomain NSAutomaticWindowAnimationsEnabled -bool false
 defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 defaults write NSGlobalDomain com.apple.springing.enabled -bool true
 defaults write NSGlobalDomain com.apple.springing-delay -float 0.1
-defaults write com.apple.universalaccess reduceMotion -bool true
-defaults write com.apple.universalaccess reduceTransparency -bool true
 defaults write com.apple.LaunchServices LSQuarantine -bool true
-log "Dock instant | animations off | transparency off | motion off"
+log "Dock instant | window animations off | Finder animations off"
+warn "reduceMotion/reduceTransparency require sudo — run script 2 (com.apple.universalaccess is TCC-protected on macOS 15)"
 
 header "Finder"
 defaults write com.apple.finder DisableAllAnimations -bool true
@@ -56,8 +56,18 @@ AGENTS=(
 for svc in "${AGENTS[@]}"; do
   launchctl disable "gui/$UID_NUM/$svc" 2>/dev/null
   launchctl bootout "gui/$UID_NUM/$svc" 2>/dev/null || true
+  # bootout removes the job from launchd but doesn't kill a running process — do both
+  proc_name="${svc##*.}"  # strip com.apple. prefix
+  killall -9 "$proc_name" 2>/dev/null || true
   log "Disabled + stopped: $svc"
 done
+
+# PhotosReliveWidget (notification center widget) respawns photoanalysisd/photolibraryd after boot
+# Kill the widget first, then re-kill the photo daemons it may have already spawned
+# To prevent permanently: remove the Photos widget from Notification Center
+killall -9 PhotosReliveWidget 2>/dev/null && log "Killed PhotosReliveWidget (prevents photo daemon respawn)" || true
+sleep 1
+killall -9 photoanalysisd photolibraryd 2>/dev/null || true
 
 header "File Descriptor Limit (LaunchAgent)"
 LIMIT_PLIST="$HOME/Library/LaunchAgents/com.local.maxfiles.plist"
