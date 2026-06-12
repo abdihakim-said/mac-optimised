@@ -72,14 +72,10 @@ for proc in "${DAEMONS[@]}"; do
   fi
 done
 
-# Photos daemons: respawned by PhotosReliveWidget (Notification Center widget)
-for proc in photoanalysisd photolibraryd; do
+# Photos daemons: cloudphotod (iCloud Photo Stream) XPC-activates photolibraryd on login
+for proc in photoanalysisd photolibraryd cloudphotod; do
   if pgrep -x "$proc" > /dev/null 2>&1; then
-    if pgrep -x "PhotosReliveWidget" > /dev/null 2>&1; then
-      warn "$proc running — caused by PhotosReliveWidget; remove Photos widget from Notification Center to permanently fix"
-    else
-      fail "$proc is running — re-run script 1"
-    fi
+    fail "$proc is running — re-run script 1"
   else
     ok "$proc not running"
   fi
@@ -179,6 +175,7 @@ header "8  LaunchAgent Disabled DB"
 DISABLED_CHECK=(
   "com.apple.photoanalysisd"
   "com.apple.photolibraryd"
+  "com.apple.cloudphotod"
   "com.apple.suggestd"
   "com.apple.knowledge-agent"
   "com.apple.intelligenceplatformd"

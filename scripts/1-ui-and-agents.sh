@@ -49,6 +49,7 @@ UID_NUM=$(id -u)
 AGENTS=(
   "com.apple.photoanalysisd"
   "com.apple.photolibraryd"
+  "com.apple.cloudphotod"           # iCloud Photo Stream — XPC-activates photolibraryd on login
   "com.apple.intelligenceplatformd"
   "com.apple.intelligencecontextd"
   "com.apple.intelligenceflowd"
@@ -68,10 +69,9 @@ for svc in "${AGENTS[@]}"; do
   log "Disabled + stopped: $svc"
 done
 
-# PhotosReliveWidget (Notification Center widget) respawns photo daemons minutes after login
-# Kill the widget first, then do a second-pass kill on the daemons
-# Permanent fix: remove the Photos widget from Notification Center
-killall -9 PhotosReliveWidget 2>/dev/null && log "Killed PhotosReliveWidget (prevents photo daemon respawn)" || true
+# cloudphotod (iCloud Photo Stream / Shared Albums) XPC-activates photolibraryd on login
+# even when photolibraryd is in the disabled DB — kill cloudphotod first to break the chain
+killall -9 cloudphotod 2>/dev/null || true
 sleep 1
 killall -9 photoanalysisd photolibraryd 2>/dev/null || true
 
