@@ -25,9 +25,9 @@ That's it. Four commands. The bootstrap script installs the login LaunchAgent (s
 ├── README.md
 ├── scripts/
 │   ├── 0-bootstrap.sh             ← run once on a new Mac after git clone
-│   ├── 1-ui-and-agents.sh         ← UI tweaks + disable background daemons (no sudo, runs on every login via LaunchAgent)
-│   ├── 2-sudo-kernel-power.sh     ← kernel limits, power, DNS, caches (sudo, run once + after macOS updates)
-│   ├── 3-verify.sh                ← health check — run any time to confirm everything is applied
+│   ├── 1-ui-and-agents.sh         ← UI tweaks + kill daemons + third-party auto-starters (no sudo, runs on every login)
+│   ├── 2-sudo-kernel-power.sh     ← kernel limits, power, system-level agents, Spotlight exclusions (sudo, run once + after macOS updates)
+│   ├── 3-verify.sh                ← health check — 9 sections, run any time
 │   └── 4-undo.sh                  ← full rollback to stock macOS defaults
 └── logs/
     └── login-apply.log            ← written on every login by the LaunchAgent (gitignored)
@@ -41,7 +41,7 @@ After bootstrap + reboot, everything is automated:
 
 | What | How it auto-loads |
 |------|-----------------|
-| UI tweaks, daemon kills | LaunchAgent runs `1-ui-and-agents.sh` on every login |
+| UI tweaks, daemon kills, third-party startup suppression | LaunchAgent runs `1-ui-and-agents.sh` on every login |
 | File descriptor limit 65536 | `~/Library/LaunchAgents/com.local.maxfiles.plist` loads on login |
 | `ulimit -n 65536` in every shell | Added to `~/.zshrc` and `~/.bashrc` |
 | Kernel sysctl tweaks | `/etc/sysctl.conf` — loaded by kernel on every boot |
@@ -52,7 +52,7 @@ After bootstrap + reboot, everything is automated:
 
 ## After a macOS Update
 
-macOS updates occasionally reset `defaults` preferences and re-enable launchd agents. The login LaunchAgent handles `defaults` automatically. For the kernel/power changes:
+macOS updates occasionally reset `defaults` preferences and re-enable launchd agents. The login LaunchAgent handles `defaults` automatically. For the kernel/power/system-level changes:
 
 ```bash
 sudo bash ~/mac-optimised/scripts/2-sudo-kernel-power.sh
@@ -77,25 +77,47 @@ bash ~/mac-optimised/scripts/3-verify.sh
 | Dock autohide speed | 0.12s | Near instant |
 | Window animations | off | Eliminates GPU compositing on every open/close |
 | Mission Control animation | 0.1s | Faster workspace switching |
-| Reduce Motion | on | Less GPU load, less distraction |
-| Reduce Transparency | on | Eliminates blur compositing (CPU/GPU heavy) |
+| Reduce Motion | on (sudo) | Less GPU load — set via script 2 |
+| Reduce Transparency | on (sudo) | Eliminates blur compositing (CPU/GPU heavy) — set via script 2 |
 | Finder animations | off | Snappier file browsing |
-| LSQuarantine dialog | **on (default)** | Gatekeeper "downloaded from internet" warning kept — security default |
+| LSQuarantine dialog | **on (default)** | Gatekeeper warning kept — security default |
 | DS_Store on network/USB | off | Stops littering remote volumes |
 | Finder hidden files | visible | Essential for SRE/DevOps work |
 | Finder path + status bar | shown | Instant path context |
 | CrashReporter dialog | silenced | No popups interrupting builds |
 
-### Background Daemons — Disabled
+### Apple Background Daemons — Disabled (script 1)
 
 | Daemon | What It Does | CPU Impact |
 |--------|-------------|------------|
 | `photoanalysisd` | On-device ML face/scene detection | **Highest** |
 | `photolibraryd` | Photos library background indexing | High |
-| `suggestd` | Siri Suggestions — analyses app usage patterns | Medium |
+| `suggestd` | Siri Suggestions — analyses app usage | Medium |
 | `knowledgeconstructiond` | Builds Spotlight knowledge graph | Medium |
 | `intelligenceflowd` | Apple Intelligence ML pipeline | Medium |
 | `inputanalyticsd` | Keystroke pattern logging | Low-Medium |
+
+**Note on PhotosReliveWidget:** The Notification Center Photos widget respawns `photoanalysisd`/`photolibraryd` minutes after login. Script 1 kills the widget and does a second-pass kill. To permanently fix: remove the Photos widget from Notification Center.
+
+### Third-Party Auto-Starters — Disabled (scripts 1 + 2)
+
+These apps install themselves as LaunchAgents and run on **every reboot** even when you don't open them:
+
+| App | Impact | Fixed by |
+|-----|--------|---------|
+| Kiro CLI (CodeWhisperer) | ~10% CPU at idle | script 1 |
+| BlueJeans Helper | `KeepAlive: true` — respawns if killed | script 1 |
+| BlueJeans Menu | Always in menu bar | script 1 |
+| Adobe CCXProcess (user-level) | Creative Cloud background process | script 1 |
+| Google Chrome Updater (hourly) | Wakes every 60 min | script 1 |
+| Adobe Creative Cloud (system) | Multiple background processes | script 2 |
+| Adobe CCXProcess (system) | System-level copy | script 2 |
+| Adobe ARMDC Helper (system) | Update/repair daemon | script 2 |
+| Zoom updater agents | Login + scheduled update checks | script 2 |
+| AnyDesk frontend (system) | Remote desktop, always running | script 2 |
+| Legacy login item (Acrobat) | Acrobat Collaboration Synchronizer | script 1 |
+
+Apps still work when launched manually — only the background auto-start is disabled.
 
 ### Apple Intelligence & Spotlight Knowledge — System Settings Required
 
@@ -104,7 +126,13 @@ These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in
 | Fix | Kills |
 |-----|-------|
 | System Settings → **Apple Intelligence & Siri** → turn off Apple Intelligence | `intelligenceplatformd`, `intelligencecontextd` |
-| System Settings → **Siri & Spotlight** → uncheck all Siri Suggestions | `knowledge-agent`, `spotlightknowledged`, `siriknowledged` |
+| System Settings → **Siri & Spotlight** → uncheck all Siri Suggestions | `knowledge-agent`, `spotlightknowledged`, `siriknowledged`, `suggestd` |
+
+### Spotlight — Dev Directories Excluded (script 2)
+
+Spotlight is excluded from indexing these directories to stop `mds_stores` from hammering CPU:
+
+`~/github-repos`, `~/sandbox`, `~/Desktop`, `~/Downloads`, `~/src`, `~/Developer`, `~/projects`, `~/code`, `~/opt`
 
 ### File Descriptor Limits
 
@@ -118,8 +146,8 @@ These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in
 
 | Key | Value | Why |
 |-----|-------|-----|
-| `kern.maxfiles` | 65,536 | Total open file descriptors |
-| `kern.maxfilesperproc` | 32,768 | Per-process fd limit |
+| `kern.maxfiles` | 524,288 | Total open file descriptors |
+| `kern.maxfilesperproc` | 524,288 | Per-process fd limit |
 | `net.inet.tcp.msl` | 15,000 ms | Halves TIME_WAIT — faster port reuse |
 | `net.inet.tcp.sendspace` | 262,144 | Larger TCP send buffer |
 | `net.inet.tcp.recvspace` | 262,144 | Larger TCP receive buffer |
@@ -135,18 +163,30 @@ These respawn via Mach/XPC regardless of `launchctl disable`. Fix permanently in
 
 ---
 
+## Known Persistent Issues
+
+| Issue | Cause | Fix |
+|-------|-------|-----|
+| `fileproviderd` high CPU | iCloud Drive syncing | Pause iCloud Drive in System Settings → Apple ID if Mac is slow |
+| `knowledge-agent`, `suggestd` | Respawn via XPC | System Settings → Siri & Spotlight → disable Suggestions |
+| Power Nap on | pmset can't override battery prefs | System Settings → Battery → turn off Power Nap |
+
+---
+
 ## Verify Everything Is Applied
 
 ```bash
 bash ~/mac-optimised/scripts/3-verify.sh
 
 # Save a timestamped log
-bash ~/mac-optimised/scripts/3-verify.sh | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
+bash ~/mac-optimised/scripts/3-verify.sh 2>&1 | tee ~/mac-optimised/logs/verify-$(date +%Y-%m-%d).txt
 ```
 
-Expected after running both scripts: 30 checks pass, 3 yellow warnings (System Settings items that need a manual toggle once), 0 failures.
+Expected after running both scripts + reboot: **42 pass, 3 warnings** (System Settings items), **0 failures**.
 
-**Note:** `com.apple.universalaccess` (Reduce Motion/Transparency) is TCC-protected on macOS 15 — it cannot be written without sudo. Script 1 handles all no-sudo settings; script 2 (sudo) handles this domain. Run both for a clean verify.
+The 3 permanent warnings are System Settings items that survive every re-run:
+- `knowledge-agent` / `suggestd` — disable via System Settings → Siri & Spotlight
+- `powernap` — disable via System Settings → Battery
 
 ---
 

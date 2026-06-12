@@ -18,8 +18,8 @@ defaults delete com.apple.dock expose-animation-duration 2>/dev/null || true
 defaults delete com.apple.dock show-recents 2>/dev/null || true
 defaults delete NSGlobalDomain NSAutomaticWindowAnimationsEnabled 2>/dev/null || true
 defaults delete NSGlobalDomain NSWindowResizeTime 2>/dev/null || true
-defaults write com.apple.universalaccess reduceMotion -bool false
-defaults write com.apple.universalaccess reduceTransparency -bool false
+defaults write /Library/Preferences/com.apple.universalaccess reduceMotion -bool false
+defaults write /Library/Preferences/com.apple.universalaccess reduceTransparency -bool false
 defaults write com.apple.LaunchServices LSQuarantine -bool true
 log "UI defaults restored to macOS stock"
 
@@ -35,8 +35,11 @@ header "Restore Analytics"
 defaults delete com.apple.CrashReporter DialogType 2>/dev/null || true
 log "CrashReporter restored"
 
+REAL_USER=$(logname 2>/dev/null || stat -f '%Su' /dev/console)
+REAL_UID=$(id -u "$REAL_USER")
+
 header "Re-enable Background Daemons"
-UID_NUM=$(id -u)
+UID_NUM=$REAL_UID
 AGENTS=(
   "com.apple.photoanalysisd"
   "com.apple.photolibraryd"
@@ -52,6 +55,41 @@ AGENTS=(
 )
 for svc in "${AGENTS[@]}"; do
   launchctl enable "gui/$UID_NUM/$svc" 2>/dev/null || true
+  log "Re-enabled: $svc"
+done
+
+header "Re-enable Third-Party System Agents"
+SYS_AGENTS=(
+  "com.adobe.AdobeCreativeCloud"
+  "com.adobe.ccxprocess"
+  "us.zoom.updater"
+  "us.zoom.updater.login.check"
+  "com.philandro.anydesk.Frontend"
+  "com.microsoft.update.agent"
+)
+for svc in "${SYS_AGENTS[@]}"; do
+  launchctl enable "gui/$REAL_UID/$svc" 2>/dev/null || true
+  log "Re-enabled: $svc"
+done
+SYS_DAEMONS=(
+  "com.adobe.ARMDC.Communicator"
+  "com.adobe.ARMDC.SMJobBlessHelper"
+  "com.adobe.acc.installer.v2"
+  "com.philandro.anydesk.Helper"
+  "com.philandro.anydesk.service"
+)
+for svc in "${SYS_DAEMONS[@]}"; do
+  launchctl enable "system/$svc" 2>/dev/null || true
+  log "Re-enabled: $svc"
+done
+USER_AGENTS=(
+  "com.amazon.codewhisperer.launcher"
+  "com.bluejeansnet.BlueJeansHelper"
+  "com.bluejeansnet.BlueJeansMenu"
+  "com.google.GoogleUpdater.wake"
+)
+for svc in "${USER_AGENTS[@]}"; do
+  launchctl enable "gui/$REAL_UID/$svc" 2>/dev/null || true
   log "Re-enabled: $svc"
 done
 

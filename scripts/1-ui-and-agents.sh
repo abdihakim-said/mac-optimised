@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ─────────────────────────────────────────────────────────────────────────────
-# SCRIPT 1 — UI tweaks + disable background CPU hogs
+# SCRIPT 1 — UI tweaks + disable background CPU hogs + third-party auto-starters
 # Run as: bash ~/mac-optimised/scripts/1-ui-and-agents.sh
 # Safe to re-run. No sudo required.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -20,8 +20,8 @@ defaults write NSGlobalDomain NSWindowResizeTime -float 0.001
 defaults write NSGlobalDomain com.apple.springing.enabled -bool true
 defaults write NSGlobalDomain com.apple.springing-delay -float 0.1
 defaults write com.apple.LaunchServices LSQuarantine -bool true
-log "Dock instant | window animations off | Finder animations off"
-warn "reduceMotion/reduceTransparency require sudo — run script 2 (com.apple.universalaccess is TCC-protected on macOS 15)"
+log "Dock instant | window animations off | Gatekeeper kept on"
+warn "reduceMotion/reduceTransparency require sudo — run script 2 (TCC-protected on macOS 15)"
 
 header "Finder"
 defaults write com.apple.finder DisableAllAnimations -bool true
@@ -38,7 +38,13 @@ defaults write com.apple.SubmitDiagInfo AutoSubmit -bool false 2>/dev/null || tr
 defaults write com.apple.assistant.support "Siri Data Sharing Opt-In Status" -int 2 2>/dev/null || true
 log "CrashReporter silenced | DiagnosticInfo off | Siri data sharing off"
 
-header "Disable Background CPU Hog Daemons"
+header "Legacy Login Items"
+# Remove any leftover login items from apps that self-register
+osascript -e 'tell application "System Events" to delete every login item whose name is "Acrobat Collaboration Synchronizer"' 2>/dev/null && log "Removed: Acrobat Collaboration Synchronizer login item" || true
+osascript -e 'tell application "System Events" to delete every login item whose name is "BlueJeans"' 2>/dev/null || true
+osascript -e 'tell application "System Events" to delete every login item whose name is "AnyDesk"' 2>/dev/null || true
+
+header "Disable Apple Background CPU Hog Daemons"
 UID_NUM=$(id -u)
 AGENTS=(
   "com.apple.photoanalysisd"
@@ -56,18 +62,43 @@ AGENTS=(
 for svc in "${AGENTS[@]}"; do
   launchctl disable "gui/$UID_NUM/$svc" 2>/dev/null
   launchctl bootout "gui/$UID_NUM/$svc" 2>/dev/null || true
-  # bootout removes the job from launchd but doesn't kill a running process — do both
-  proc_name="${svc##*.}"  # strip com.apple. prefix
+  # bootout removes the job from launchd tracking but does NOT kill a running process
+  proc_name="${svc##*.}"
   killall -9 "$proc_name" 2>/dev/null || true
   log "Disabled + stopped: $svc"
 done
 
-# PhotosReliveWidget (notification center widget) respawns photoanalysisd/photolibraryd after boot
-# Kill the widget first, then re-kill the photo daemons it may have already spawned
-# To prevent permanently: remove the Photos widget from Notification Center
+# PhotosReliveWidget (Notification Center widget) respawns photo daemons minutes after login
+# Kill the widget first, then do a second-pass kill on the daemons
+# Permanent fix: remove the Photos widget from Notification Center
 killall -9 PhotosReliveWidget 2>/dev/null && log "Killed PhotosReliveWidget (prevents photo daemon respawn)" || true
 sleep 1
 killall -9 photoanalysisd photolibraryd 2>/dev/null || true
+
+header "Disable Third-Party Auto-Starters (user-level)"
+# These install themselves as LaunchAgents and run on every login consuming CPU/RAM
+# Apps still work fine when launched manually — only the background auto-start is disabled
+
+THIRD_PARTY_AGENTS=(
+  "com.amazon.codewhisperer.launcher"   # Kiro CLI — ~10% CPU at idle
+  "com.bluejeansnet.BlueJeansHelper"    # KeepAlive:true — respawns itself if killed!
+  "com.bluejeansnet.BlueJeansMenu"      # BlueJeans menu bar
+  "com.adobe.ccxprocess"                # Adobe CCXProcess (user-level copy)
+  "com.google.GoogleUpdater.wake"       # Chrome updater wake — runs every hour
+)
+for svc in "${THIRD_PARTY_AGENTS[@]}"; do
+  launchctl disable "gui/$UID_NUM/$svc" 2>/dev/null || true
+  launchctl bootout "gui/$UID_NUM/$svc" 2>/dev/null || true
+  log "Disabled: $svc"
+done
+
+# Kill by actual binary names (different from service label for some apps)
+killall -9 kiro_cli_desktop 2>/dev/null || true       # Kiro / CodeWhisperer
+killall -9 BlueJeansHelper  2>/dev/null || true
+killall -9 BlueJeansMenu    2>/dev/null || true
+killall -9 CCXProcess       2>/dev/null || true        # Adobe Creative Cloud Experience
+killall -9 GoogleUpdater    2>/dev/null || true
+log "Killed: Kiro CLI, BlueJeans, Adobe CCXProcess, Google Updater"
 
 header "File Descriptor Limit (LaunchAgent)"
 LIMIT_PLIST="$HOME/Library/LaunchAgents/com.local.maxfiles.plist"
