@@ -11,9 +11,9 @@ BOLD='\033[1m'; NC='\033[0m'
 
 PASS=0; FAIL=0; WARN=0
 
-ok()   { echo -e "  ${GREEN}✓${NC}  $1"; ((PASS++)); }
-fail() { echo -e "  ${RED}✗${NC}  $1"; ((FAIL++)); }
-warn() { echo -e "  ${YELLOW}!${NC}  $1"; ((WARN++)); }
+ok()   { echo -e "  ${GREEN}✓${NC}  $1"; PASS=$((PASS+1)); }
+fail() { echo -e "  ${RED}✗${NC}  $1"; FAIL=$((FAIL+1)); }
+warn() { echo -e "  ${YELLOW}!${NC}  $1"; WARN=$((WARN+1)); }
 header() { echo -e "\n${BOLD}── $1${NC}"; }
 
 UID_NUM=$(id -u)
